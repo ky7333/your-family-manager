@@ -27,9 +27,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install ESLint toolchain
-        run: npm install --no-save eslint @eslint/js typescript-eslint eslint-plugin-react-hooks globals
-
       - name: Lint
         run: npm run lint
 
