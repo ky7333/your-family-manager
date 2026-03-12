@@ -36,7 +36,7 @@ function TodosPage() {
 
   const handleToggle = async (todo: Todo) => {
     try {
-      const updated = await updateTodo(todo.id, { ...todo, completed: !todo.completed });
+      const updated = await updateTodo(todo.id, { completed: !todo.completed });
       setTodos(todos.map(t => (t.id === todo.id ? updated : t)));
     } catch (e: any) {
       setError(e.message);

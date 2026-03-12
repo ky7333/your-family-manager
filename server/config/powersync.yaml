@@ -1,0 +1,21 @@
+# Local PowerSync config for compose-devservices.yml
+# Replace placeholders before use in a real environment.
+
+service:
+  port: 8080
+
+sync_rules:
+  - bucket: todos
+    tables:
+      - public.todo
+
+postgres:
+  uri: "${PS_DATA_SOURCE_URI}"
+
+storage:
+  type: postgres
+  uri: "${PS_STORAGE_SOURCE_URI}"
+
+client_auth:
+  allow_local_jwks: true
+  jwks_url: "${PS_JWKS_URL}"

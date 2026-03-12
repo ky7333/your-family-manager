@@ -1,5 +1,5 @@
 export interface UserRef {
-  id: number;
+  id: string;
   username: string;
 }
 
