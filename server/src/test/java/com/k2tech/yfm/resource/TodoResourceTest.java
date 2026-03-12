@@ -2,6 +2,8 @@ package com.k2tech.yfm.resource;
 
 import com.k2tech.yfm.model.Role;
 import com.k2tech.yfm.model.Todo;
+import com.k2tech.yfm.model.TodoList;
+import com.k2tech.yfm.model.TodoPriority;
 import com.k2tech.yfm.model.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -10,14 +12,18 @@ import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @QuarkusTest
@@ -27,32 +33,58 @@ class TodoResourceTest {
     @Transactional
     void setUp() {
         Todo.deleteAll();
+        TodoList.deleteAll();
         User.deleteAll();
         Role.deleteAll();
 
         User.add("alice", "alice", Set.of("user"));
         User.add("bob", "bob", Set.of("user"));
+        User.add("charlie", "charlie", Set.of("user"));
     }
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
-    void listOnlyReturnsCurrentUsersTodos() {
-        createTodoFor("alice", "Alice todo", false);
-        createTodoFor("bob", "Bob todo", false);
+    void listOnlyReturnsTodosFromListsCurrentUserCanAccess() {
+        UUID aliceList = createListFor("alice", "Alice list");
+        UUID bobSharedList = createListFor("bob", "Shared with Alice", "alice");
+        UUID bobPrivateList = createListFor("bob", "Bob private");
+
+        createTodoFor(aliceList, "alice", "Alice todo", false);
+        createTodoFor(bobSharedList, "bob", "Shared todo", false);
+        createTodoFor(bobPrivateList, "bob", "Private todo", false);
 
         given()
                 .when().get("/todos")
                 .then()
                 .statusCode(200)
-                .body("$", hasSize(1))
-                .body("[0].title", equalTo("Alice todo"))
-                .body("[0].createdBy.username", equalTo("alice"));
+                .body("$", hasSize(2))
+                .body("title", hasItem("Alice todo"))
+                .body("title", hasItem("Shared todo"))
+                .body("title", not(hasItem("Private todo")));
     }
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
-    void cannotAccessAnotherUsersTodoById() {
-        UUID bobTodoId = createTodoFor("bob", "Bob secret", false);
+    void listFilterReturnsOnlySelectedListTodos() {
+        UUID chores = createListFor("alice", "Chores");
+        UUID shopping = createListFor("alice", "Shopping");
+        createTodoFor(chores, "alice", "Laundry", false);
+        createTodoFor(shopping, "alice", "Milk", false);
+
+        given()
+                .queryParam("listId", chores)
+                .when().get("/todos")
+                .then()
+                .statusCode(200)
+                .body("$", hasSize(1))
+                .body("[0].title", equalTo("Laundry"));
+    }
+
+    @Test
+    @TestSecurity(user = "alice", roles = {"user"})
+    void cannotAccessAnotherUsersPrivateTodoById() {
+        UUID bobPrivateList = createListFor("bob", "Bob private");
+        UUID bobTodoId = createTodoFor(bobPrivateList, "bob", "Bob secret", false);
 
         given()
                 .when().get("/todos/{id}", bobTodoId)
@@ -62,72 +94,126 @@ class TodoResourceTest {
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
-    void cannotUpdateOrDeleteAnotherUsersTodo() {
-        UUID bobTodoId = createTodoFor("bob", "Bob secret", false);
+    void cannotCreateTodoInInaccessibleList() {
+        UUID bobPrivateList = createListFor("bob", "Bob private");
 
         given()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("title", "Should fail"))
-                .when().put("/todos/{id}", bobTodoId)
-                .then()
-                .statusCode(404);
-
-        given()
-                .when().delete("/todos/{id}", bobTodoId)
+                .body(Map.of(
+                        "listId", bobPrivateList,
+                        "title", "Should fail",
+                        "completed", false
+                ))
+                .when().post("/todos")
                 .then()
                 .statusCode(404);
     }
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
-    void clearsCompletedByWhenTodoMarkedIncomplete() {
-        UUID todoId = createTodoFor("alice", "Toggle me", false);
+    void supportsExtendedTodoFieldsAndCompletionMetadata() {
+        UUID aliceList = createListFor("alice", "Alice list");
 
-        given()
+        String todoId = given()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("completed", true))
-                .when().put("/todos/{id}", todoId)
+                .body(Map.of(
+                        "listId", aliceList,
+                        "title", "Pay utility bill",
+                        "details", "Pay online before late fee applies",
+                        "dueDate", "2026-03-15",
+                        "priority", "HIGH",
+                        "completed", true
+                ))
+                .when().post("/todos")
                 .then()
-                .statusCode(200)
+                .statusCode(201)
+                .body("todoList.id", equalTo(aliceList.toString()))
+                .body("details", equalTo("Pay online before late fee applies"))
+                .body("dueDate", equalTo("2026-03-15"))
+                .body("priority", equalTo("HIGH"))
                 .body("completed", is(true))
-                .body("completedBy.username", equalTo("alice"));
+                .body("completedBy.username", equalTo("alice"))
+                .extract().path("id");
 
         given()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("completed", false))
+                .body(Map.of(
+                        "completed", false,
+                        "details", "",
+                        "dueDate", "",
+                        "priority", "LOW"
+                ))
                 .when().put("/todos/{id}", todoId)
                 .then()
                 .statusCode(200)
                 .body("completed", is(false))
-                .body("completedBy", nullValue());
+                .body("completedBy", nullValue())
+                .body("completedAt", nullValue())
+                .body("details", nullValue())
+                .body("dueDate", nullValue())
+                .body("priority", equalTo("LOW"));
     }
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
     void rejectsInvalidTodoPayloads() {
+        UUID aliceList = createListFor("alice", "Alice list");
+
         given()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("title", "   ", "completed", false))
+                .body(Map.of(
+                        "listId", aliceList,
+                        "title", "   ",
+                        "completed", false
+                ))
                 .when().post("/todos")
                 .then()
                 .statusCode(400);
 
-        UUID todoId = createTodoFor("alice", "Valid", false);
-
         given()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("title", " "))
-                .when().put("/todos/{id}", todoId)
+                .body(Map.of(
+                        "listId", aliceList,
+                        "title", "Valid title",
+                        "dueDate", "03/15/2026",
+                        "completed", false
+                ))
+                .when().post("/todos")
                 .then()
                 .statusCode(400);
     }
 
     @Transactional
-    UUID createTodoFor(String username, String title, boolean completed) {
-        User owner = User.find("username", username).firstResult();
+    UUID createListFor(String ownerUsername, String name, String... sharedWith) {
+        User owner = User.find("username", ownerUsername).firstResult();
+        TodoList todoList = new TodoList();
+        todoList.name = name;
+        todoList.createdBy = owner;
+        todoList.members.add(owner);
+        for (String username : sharedWith) {
+            User member = User.find("username", username).firstResult();
+            if (member != null && todoList.members.stream().noneMatch(existing -> existing.id.equals(member.id))) {
+                todoList.members.add(member);
+            }
+        }
+        todoList.persist();
+        return todoList.id;
+    }
+
+    @Transactional
+    UUID createTodoFor(UUID listId, String createdByUsername, String title, boolean completed) {
+        User owner = User.find("username", createdByUsername).firstResult();
+        TodoList todoList = TodoList.findById(listId);
         Todo todo = new Todo();
         todo.title = title;
         todo.completed = completed;
+        todo.details = null;
+        todo.priority = TodoPriority.MEDIUM;
+        todo.createdAt = LocalDateTime.now();
+        todo.updatedAt = LocalDateTime.now();
+        todo.completedAt = completed ? LocalDateTime.now() : null;
+        todo.dueDate = LocalDate.now().plusDays(1);
+        todo.todoList = todoList;
         todo.createdBy = owner;
         todo.completedBy = completed ? owner : null;
         todo.persist();

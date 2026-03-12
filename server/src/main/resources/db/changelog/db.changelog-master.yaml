@@ -105,3 +105,95 @@ databaseChangeLog:
             referencedTableName: application_user
             referencedColumnNames: id
             constraintName: fk_todo_completedBy
+  - changeSet:
+      id: 5
+      author: codex
+      changes:
+        - createTable:
+            tableName: todo_list
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: createdby_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: todo_list
+            baseColumnNames: createdby_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_todo_list_createdBy
+        - createTable:
+            tableName: todo_list_member
+            columns:
+              - column:
+                  name: list_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: todo_list_member
+            columnNames: list_id,user_id
+        - addForeignKeyConstraint:
+            baseTableName: todo_list_member
+            baseColumnNames: list_id
+            referencedTableName: todo_list
+            referencedColumnNames: id
+            constraintName: fk_todo_list_member_list
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: todo_list_member
+            baseColumnNames: user_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_todo_list_member_user
+            onDelete: CASCADE
+        - addColumn:
+            tableName: todo
+            columns:
+              - column:
+                  name: list_id
+                  type: uuid
+              - column:
+                  name: details
+                  type: VARCHAR(2000)
+              - column:
+                  name: due_date
+                  type: DATE
+              - column:
+                  name: priority
+                  type: VARCHAR(32)
+                  defaultValue: MEDIUM
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+              - column:
+                  name: completed_at
+                  type: TIMESTAMP
+        - addForeignKeyConstraint:
+            baseTableName: todo
+            baseColumnNames: list_id
+            referencedTableName: todo_list
+            referencedColumnNames: id
+            constraintName: fk_todo_list

@@ -53,6 +53,7 @@ Last reviewed: 2026-03-11 (America/New_York)
 
 - Authorization is user-scoped but not yet family/household-scoped.
 - No frontend tests currently cover todo/auth flows.
+- No frontend tests currently cover username search and member-chip selection in todo list sharing.
 - PowerSync config is still a starter placeholder and not production-hardened.
 - Docs (root/web README) still need project-specific onboarding and architecture details.
 

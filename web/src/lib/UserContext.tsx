@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchCurrentUser } from '../api/userApi';
 
 export type User = {
-  id: number;
+  id: string;
   username: string;
   roles: { role: string }[];
 };
@@ -27,4 +27,3 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </UserContext.Provider>
   );
 };
-
