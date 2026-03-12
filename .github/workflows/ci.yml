@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install ESLint toolchain
         run: npm install --no-save eslint @eslint/js typescript-eslint eslint-plugin-react-hooks globals
