@@ -1,87 +1,243 @@
-# code-with-quarkus
+# Your Family Manager
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Your Family Manager is a family life management platform in active development.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+Current implementation is focused on authenticated task management:
+- Quarkus backend with session auth, user profile, todo lists, and todos
+- React web app with login/logout, todo list sharing, and todo CRUD
+- PostgreSQL + Liquibase migrations
 
-## Running the application in dev mode
+Planned modules (not implemented yet): recipes, meal planning, budgeting, and mobile sync.
 
-You can run your application in dev mode that enables live coding using:
+## Tech Stack
 
-```shell script
+- Backend: Java 21, Quarkus 3, Hibernate Panache, Liquibase
+- Frontend: React 19, Vite, TanStack Router, Tailwind, shadcn/ui
+- Database: PostgreSQL
+- Containers: Docker or Podman
+
+## Repository Layout
+
+- `server/` Quarkus backend API
+- `web/` React frontend
+- `server/compose-devservices.yml` local PowerSync + PostgreSQL services
+- `server/config/powersync.yaml` PowerSync config used by compose
+
+## Getting Started (Development)
+
+### Prerequisites
+
+- Java 21+
+- Node.js 22+ and npm
+- Docker Desktop or Podman (needed for database if using Quarkus Dev Services)
+
+### 1) Start the backend
+
+From repo root:
+
+```bash
+cd server
 ./mvnw quarkus:dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+Backend runs on `http://localhost:8080`.
 
-## Packaging and running the application
+Notes:
+- In `dev`, Quarkus auto-creates seed users if DB is empty:
+  - `admin / admin`
+  - `user / user`
+- Liquibase migrations run at startup.
 
-The application can be packaged using:
+### 2) Start the web app
 
-```shell script
-./mvnw package
+In a second terminal:
+
+```bash
+cd web
+npm install
+npm run dev
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+Frontend runs on `http://localhost:3000` and calls backend at `http://localhost:8080` by default.
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+Optional override:
 
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+```bash
+cd web
+VITE_BACKEND_BASE_URL=http://localhost:8080 npm run dev
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+### 3) Verify the setup
 
-## Creating a native executable
+- Open `http://localhost:3000`
+- Login with `admin/admin`
+- Create a todo list, then create/update todos
 
-You can create a native executable using:
+## Development Checks
 
-```shell script
-./mvnw package -Dnative
+### Backend tests
+
+```bash
+cd server
+./mvnw test
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+### Frontend build
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+```bash
+cd web
+npm run build
 ```
 
-You can then execute your native executable with: `./target/code-with-quarkus-1.0.0-SNAPSHOT-runner`
+### Frontend tests
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+```bash
+cd web
+npm run test
+```
 
-## Related Guides
+## Deploying with Docker or Podman
 
-- REST ([guide](https://quarkus.io/guides/rest)): A Jakarta REST implementation utilizing build time processing and Vert.x. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it.
-- REST Jackson ([guide](https://quarkus.io/guides/rest#json-serialisation)): Jackson serialization support for Quarkus REST. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it
-- OpenID Connect ([guide](https://quarkus.io/guides/security-openid-connect)): Verify Bearer access tokens and authenticate users with Authorization Code Flow
-- Hibernate ORM with Panache ([guide](https://quarkus.io/guides/hibernate-orm-panache)): Simplify your persistence code for Hibernate ORM via the active record or the repository pattern
-- Quinoa ([guide](https://quarkiverse.github.io/quarkiverse-docs/quarkus-quinoa/dev/index.html)): Develop, build, and serve your npm-compatible web applications such as React, Angular, Vue, Lit, Svelte, Astro, SolidJS, and others alongside Quarkus.
-- JDBC Driver - PostgreSQL ([guide](https://quarkus.io/guides/datasource)): Connect to the PostgreSQL database via JDBC
+Commands below use `docker`. If you use Podman, replace `docker` with `podman`.
 
-## Provided Code
+### A) Build application images
 
-### Hibernate ORM
+From repo root:
 
-Create your first JPA entity
+```bash
+# Build backend artifact
+cd server
+./mvnw package -DskipTests
+cd ..
 
-[Related guide section...](https://quarkus.io/guides/hibernate-orm)
+# Build backend image
 
-[Related Hibernate with Panache section...](https://quarkus.io/guides/hibernate-orm-panache)
+docker build -t yfm-server:latest -f server/src/main/docker/Dockerfile.jvm server
 
+# Build web image
 
-### Quinoa
+docker build -t yfm-web:latest web
+```
 
-Quinoa codestart added a tiny Vite app in src/main/webui. The page is configured to be visible on <a href="/quinoa">/quinoa</a>.
+### B) Run app stack (PostgreSQL + backend + web)
 
-[Related guide section...](https://quarkiverse.github.io/quarkiverse-docs/quarkus-quinoa/dev/index.html)
+```bash
+# one-time network + volume
 
+docker network create yfm-net
 
-### REST
+docker volume create yfm-pg-data
 
-Easily start your REST Web Services
+# postgres
 
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+docker run -d \
+  --name yfm-postgres \
+  --network yfm-net \
+  -e POSTGRES_DB=yfm \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -v yfm-pg-data:/var/lib/postgresql/data \
+  postgres:16
+
+# backend
+
+docker run -d \
+  --name yfm-server \
+  --network yfm-net \
+  -p 8080:8080 \
+  -e QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://yfm-postgres:5432/yfm \
+  -e QUARKUS_DATASOURCE_USERNAME=postgres \
+  -e QUARKUS_DATASOURCE_PASSWORD=postgres \
+  -e QUARKUS_HTTP_CORS_ORIGINS=http://localhost:3000 \
+  yfm-server:latest
+
+# web
+
+docker run -d \
+  --name yfm-web \
+  --network yfm-net \
+  -p 3000:80 \
+  yfm-web:latest
+```
+
+Access:
+- Web UI: `http://localhost:3000`
+- API: `http://localhost:8080`
+
+### C) Podman notes
+
+- Rootless Podman works with the same commands (`podman ...`).
+- If needed on macOS:
+
+```bash
+podman machine init
+podman machine start
+```
+
+## Running PowerSync + PostgreSQL Dev Services (Optional)
+
+If you want to run the provided PowerSync compose stack:
+
+1. Create a `.env` file in `server/` with these values (example values shown):
+
+```env
+PG_DATABASE_USER=postgres
+PG_DATABASE_NAME=yfm
+PG_DATABASE_PASSWORD=postgres
+PG_DATABASE_PORT=5432
+
+PG_STORAGE_DATABASE_USER=postgres
+PG_STORAGE_DATABASE_NAME=powersync
+PG_STORAGE_DATABASE_PASSWORD=postgres
+PG_STORAGE_DATABASE_PORT=5433
+
+PS_PORT=8081
+PS_DATA_SOURCE_URI=postgresql://postgres:postgres@pg-db:5432/yfm
+PS_STORAGE_SOURCE_URI=postgresql://postgres:postgres@pg-storage:5433/powersync
+PS_JWKS_URL=http://host.containers.internal:8080/.well-known/jwks.json
+```
+
+2. Start services:
+
+```bash
+cd server
+docker compose -f compose-devservices.yml up -d
+```
+
+For Podman:
+
+```bash
+cd server
+podman compose -f compose-devservices.yml up -d
+```
+
+## Useful Commands
+
+```bash
+# Backend dev
+cd server && ./mvnw quarkus:dev
+
+# Backend tests
+cd server && ./mvnw test
+
+# Frontend dev
+cd web && npm install && npm run dev
+
+# Frontend build
+cd web && npm run build
+```
+
+## Current Scope and Known Gaps
+
+Implemented now:
+- Session auth (`/j_security_check`, `/logout`, `/me`)
+- Todo lists with member access levels (owner/read-write/read-only)
+- Todo CRUD scoped by list access
+- Username search for sharing (`/users/search`)
+
+Not yet implemented:
+- Family/household-level authorization model
+- Recipes, meal plans, and budgets
+- Mobile app and full PowerSync integration contract
+- Comprehensive frontend end-to-end coverage
