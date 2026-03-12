@@ -11,15 +11,16 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class TodoRepository implements PanacheRepositoryBase<Todo, UUID> {
-    public List<Todo> findByOwner(User owner) {
-        return find("createdBy", owner).list();
+    public List<Todo> findByUser(User user) {
+        return find("select distinct t from Todo t join t.todoList l join l.members m where m = ?1 order by t.completed asc, t.createdAt desc", user).list();
     }
 
-    public Optional<Todo> findByIdAndOwner(UUID id, User owner) {
-        return find("id = ?1 and createdBy = ?2", id, owner).firstResultOptional();
+    public List<Todo> findByListAndUser(UUID listId, User user) {
+        return find("select distinct t from Todo t join t.todoList l join l.members m where l.id = ?1 and m = ?2 order by t.completed asc, t.createdAt desc", listId, user).list();
     }
 
-    public boolean deleteByIdAndOwner(UUID id, User owner) {
-        return delete("id = ?1 and createdBy = ?2", id, owner) == 1;
+    public Optional<Todo> findByIdForUser(UUID id, User user) {
+        return find("select distinct t from Todo t join t.todoList l join l.members m where t.id = ?1 and m = ?2", id, user)
+                .firstResultOptional();
     }
 }

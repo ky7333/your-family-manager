@@ -1,15 +1,15 @@
-import type { Todo } from '../types/Todo';
+import type { CreateTodoInput, Todo, UpdateTodoInput } from '../types/Todo';
 import { BACKEND_BASE_URL } from '../config';
 
 const API_URL = `${BACKEND_BASE_URL}/todos`;
 
-export async function fetchTodos(): Promise<Todo[]> {
-  const res = await fetch(API_URL, { credentials: 'include' });
+export async function fetchTodos(listId: string): Promise<Todo[]> {
+  const res = await fetch(`${API_URL}?listId=${encodeURIComponent(listId)}`, { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch todos');
   return res.json();
 }
 
-export async function addTodo(todo: Omit<Todo, 'id'>): Promise<Todo> {
+export async function addTodo(todo: CreateTodoInput): Promise<Todo> {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -20,7 +20,7 @@ export async function addTodo(todo: Omit<Todo, 'id'>): Promise<Todo> {
   return res.json();
 }
 
-export async function updateTodo(id: string, todo: Partial<Todo>): Promise<Todo> {
+export async function updateTodo(id: string, todo: UpdateTodoInput): Promise<Todo> {
   const res = await fetch(`${API_URL}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
