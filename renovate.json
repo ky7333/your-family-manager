@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticPrefixFixDepsChoreOthers",
+    "group:allNonMajor"
+  ],
+  "timezone": "America/New_York",
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "enabledManagers": [
+    "npm",
+    "maven",
+    "github-actions"
+  ],
+  "rangeStrategy": "replace",
+  "ignoreUnstable": true,
+  "rebaseWhen": "behind-base-branch",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 10,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "matchManagers": [
+        "npm",
+        "maven"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchManagers": [
+        "maven"
+      ],
+      "matchPackageNames": [
+        "io.quarkus.platform:quarkus-bom",
+        "io.quarkus.platform:quarkus-maven-plugin"
+      ],
+      "groupName": "quarkus platform"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions"
+    }
+  ]
+}
