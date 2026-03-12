@@ -4,6 +4,8 @@ import { Trash2 } from 'lucide-react';
 import { addTodo, deleteTodo, fetchTodos, updateTodo } from '../api/todoApi';
 import { addTodoList, fetchTodoLists } from '../api/todoListApi';
 import { searchUsersByUsername, type UserSearchResult } from '../api/userApi';
+import { useUser } from '../lib/UserContext';
+import { canWriteToList } from '../lib/todoAccess';
 import type { Todo, TodoList, TodoPriority, UpdateTodoInput } from '../types/Todo';
 
 const PRIORITIES: TodoPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
@@ -22,6 +24,10 @@ function TodosPage() {
   const [selectedMemberUsernames, setSelectedMemberUsernames] = useState<string[]>([]);
   const [memberSearchResults, setMemberSearchResults] = useState<UserSearchResult[]>([]);
   const [searchingMembers, setSearchingMembers] = useState(false);
+  const [readOnlyMemberQuery, setReadOnlyMemberQuery] = useState('');
+  const [selectedReadOnlyMemberUsernames, setSelectedReadOnlyMemberUsernames] = useState<string[]>([]);
+  const [readOnlyMemberSearchResults, setReadOnlyMemberSearchResults] = useState<UserSearchResult[]>([]);
+  const [searchingReadOnlyMembers, setSearchingReadOnlyMembers] = useState(false);
 
   const [newTitle, setNewTitle] = useState('');
   const [newDetails, setNewDetails] = useState('');
@@ -33,10 +39,16 @@ function TodosPage() {
   const [savingList, setSavingList] = useState(false);
   const [savingTodo, setSavingTodo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useUser();
 
   const selectedList = useMemo(
     () => lists.find(list => list.id === selectedListId) ?? null,
     [lists, selectedListId],
+  );
+
+  const selectedListIsWritable = useMemo(
+    () => canWriteToList(selectedList, user),
+    [selectedList, user],
   );
 
   useEffect(() => {
@@ -112,14 +124,63 @@ function TodosPage() {
     };
   }, [memberQuery, selectedMemberUsernames]);
 
+  useEffect(() => {
+    const query = readOnlyMemberQuery.trim();
+    if (!query) {
+      setReadOnlyMemberSearchResults([]);
+      setSearchingReadOnlyMembers(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearchingReadOnlyMembers(true);
+      try {
+        const results = await searchUsersByUsername(query, controller.signal);
+        setReadOnlyMemberSearchResults(
+          results.filter(
+            result =>
+              !selectedMemberUsernames.includes(result.username)
+              && !selectedReadOnlyMemberUsernames.includes(result.username),
+          ),
+        );
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          setError(e.message);
+        }
+      } finally {
+        setSearchingReadOnlyMembers(false);
+      }
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [readOnlyMemberQuery, selectedMemberUsernames, selectedReadOnlyMemberUsernames]);
+
   const addMemberChip = (username: string) => {
+    setSelectedReadOnlyMemberUsernames(prev => prev.filter(value => value !== username));
     setSelectedMemberUsernames(prev => (prev.includes(username) ? prev : [...prev, username]));
     setMemberQuery('');
     setMemberSearchResults([]);
   };
 
+  const addReadOnlyMemberChip = (username: string) => {
+    if (selectedMemberUsernames.includes(username)) {
+      return;
+    }
+    setSelectedReadOnlyMemberUsernames(prev => (prev.includes(username) ? prev : [...prev, username]));
+    setReadOnlyMemberQuery('');
+    setReadOnlyMemberSearchResults([]);
+  };
+
   const removeMemberChip = (username: string) => {
     setSelectedMemberUsernames(prev => prev.filter(value => value !== username));
+  };
+
+  const removeReadOnlyMemberChip = (username: string) => {
+    setSelectedReadOnlyMemberUsernames(prev => prev.filter(value => value !== username));
   };
 
   const handleAddList = async (e: React.FormEvent) => {
@@ -135,6 +196,7 @@ function TodosPage() {
       const created = await addTodoList({
         name: listName,
         sharedWithUsernames: selectedMemberUsernames,
+        readOnlySharedWithUsernames: selectedReadOnlyMemberUsernames,
       });
       setLists(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedListId(created.id);
@@ -142,6 +204,9 @@ function TodosPage() {
       setMemberQuery('');
       setSelectedMemberUsernames([]);
       setMemberSearchResults([]);
+      setReadOnlyMemberQuery('');
+      setSelectedReadOnlyMemberUsernames([]);
+      setReadOnlyMemberSearchResults([]);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -152,6 +217,11 @@ function TodosPage() {
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedListId) {
+      return;
+    }
+
+    if (!selectedListIsWritable) {
+      setError('This list is read-only for you');
       return;
     }
 
@@ -184,6 +254,10 @@ function TodosPage() {
   };
 
   const handleToggleTodo = async (todo: Todo) => {
+    if (!selectedListIsWritable) {
+      setError('This list is read-only for you');
+      return;
+    }
     try {
       const updated = await updateTodo(todo.id, { completed: !todo.completed });
       setTodos(prev => prev.map(item => (item.id === todo.id ? updated : item)));
@@ -193,6 +267,10 @@ function TodosPage() {
   };
 
   const handleUpdateTodo = async (id: string, payload: UpdateTodoInput) => {
+    if (!selectedListIsWritable) {
+      setError('This list is read-only for you');
+      return;
+    }
     try {
       const updated = await updateTodo(id, payload);
       setTodos(prev => prev.map(item => (item.id === id ? updated : item)));
@@ -202,6 +280,10 @@ function TodosPage() {
   };
 
   const handleDeleteTodo = async (id: string) => {
+    if (!selectedListIsWritable) {
+      setError('This list is read-only for you');
+      return;
+    }
     try {
       await deleteTodo(id);
       setTodos(prev => prev.filter(item => item.id !== id));
@@ -274,6 +356,55 @@ function TodosPage() {
                 ))}
               </ul>
             )}
+            <div className="rounded border p-2">
+              <p className="mb-2 text-xs text-muted-foreground">Read-only members</p>
+              <div className="mb-2 flex flex-wrap gap-1">
+                {selectedReadOnlyMemberUsernames.map(username => (
+                  <span key={username} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-xs">
+                    {username}
+                    <button
+                      type="button"
+                      onClick={() => removeReadOnlyMemberChip(username)}
+                      className="rounded-full px-1 leading-none hover:bg-black/10"
+                      aria-label={`Remove read-only ${username}`}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                value={readOnlyMemberQuery}
+                onChange={e => setReadOnlyMemberQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && readOnlyMemberSearchResults.length > 0) {
+                    e.preventDefault();
+                    addReadOnlyMemberChip(readOnlyMemberSearchResults[0].username);
+                  }
+                }}
+                placeholder="Search usernames for read-only access"
+                className="w-full rounded border bg-transparent px-3 py-2 text-sm"
+                disabled={savingList}
+              />
+            </div>
+            {searchingReadOnlyMembers && (
+              <p className="text-xs text-muted-foreground">Searching users...</p>
+            )}
+            {!searchingReadOnlyMembers && readOnlyMemberSearchResults.length > 0 && (
+              <ul className="max-h-32 overflow-auto rounded border">
+                {readOnlyMemberSearchResults.map(result => (
+                  <li key={result.id}>
+                    <button
+                      type="button"
+                      onClick={() => addReadOnlyMemberChip(result.username)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary"
+                    >
+                      {result.username}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               type="submit"
               disabled={savingList}
@@ -298,8 +429,11 @@ function TodosPage() {
                   onClick={() => setSelectedListId(list.id)}
                 >
                   <div className="font-medium">{list.name}</div>
-                  {list.members && list.members.length > 1 && (
-                    <div className="text-xs opacity-80">{list.members.length} members</div>
+                  {list.members && list.members.length > 0 && (
+                    <div className="text-xs opacity-80">
+                      {list.members.length} write {list.members.length === 1 ? 'member' : 'members'}
+                      {list.readOnlyMembers && list.readOnlyMembers.length > 0 && ` · ${list.readOnlyMembers.length} read-only`}
+                    </div>
                   )}
                 </button>
               </li>
@@ -322,9 +456,17 @@ function TodosPage() {
             <>
               <div className="mb-4">
                 <h2 className="text-xl font-semibold">{selectedList.name}</h2>
+                {!selectedListIsWritable && (
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">You have read-only access to this list.</p>
+                )}
                 {selectedList.members && selectedList.members.length > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Shared with: {selectedList.members.map(member => member.username).join(', ')}
+                    Shared with (write): {selectedList.members.map(member => member.username).join(', ')}
+                  </p>
+                )}
+                {selectedList.readOnlyMembers && selectedList.readOnlyMembers.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Shared with (read-only): {selectedList.readOnlyMembers.map(member => member.username).join(', ')}
                   </p>
                 )}
               </div>
@@ -335,7 +477,7 @@ function TodosPage() {
                   onChange={e => setNewTitle(e.target.value)}
                   placeholder="Todo title"
                   className="rounded border bg-transparent px-3 py-2 text-sm md:col-span-2"
-                  disabled={savingTodo}
+                  disabled={savingTodo || !selectedListIsWritable}
                 />
                 <textarea
                   value={newDetails}
@@ -343,7 +485,7 @@ function TodosPage() {
                   placeholder="Details"
                   rows={2}
                   className="rounded border bg-transparent px-3 py-2 text-sm md:col-span-2"
-                  disabled={savingTodo}
+                  disabled={savingTodo || !selectedListIsWritable}
                 />
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">Due Date</label>
@@ -352,7 +494,7 @@ function TodosPage() {
                     value={newDueDate}
                     onChange={e => setNewDueDate(e.target.value)}
                     className="w-full rounded border bg-transparent px-3 py-2 text-sm"
-                    disabled={savingTodo}
+                    disabled={savingTodo || !selectedListIsWritable}
                   />
                 </div>
                 <div>
@@ -361,7 +503,7 @@ function TodosPage() {
                     value={newPriority}
                     onChange={e => setNewPriority(e.target.value as TodoPriority)}
                     className="w-full rounded border bg-transparent px-3 py-2 text-sm"
-                    disabled={savingTodo}
+                    disabled={savingTodo || !selectedListIsWritable}
                   >
                     {PRIORITIES.map(priority => (
                       <option key={priority} value={priority} className="text-black">
@@ -372,10 +514,10 @@ function TodosPage() {
                 </div>
                 <button
                   type="submit"
-                  disabled={savingTodo}
+                  disabled={savingTodo || !selectedListIsWritable}
                   className="rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60 md:col-span-2"
                 >
-                  {savingTodo ? 'Adding...' : 'Add todo'}
+                  {savingTodo ? 'Adding...' : selectedListIsWritable ? 'Add todo' : 'Read-only access'}
                 </button>
               </form>
 
@@ -392,6 +534,7 @@ function TodosPage() {
                       onToggle={() => handleToggleTodo(todo)}
                       onUpdate={payload => handleUpdateTodo(todo.id, payload)}
                       onDelete={() => handleDeleteTodo(todo.id)}
+                      canEdit={selectedListIsWritable}
                     />
                   </li>
                 ))}
@@ -409,11 +552,13 @@ function TodoItem({
   onToggle,
   onUpdate,
   onDelete,
+  canEdit,
 }: {
   todo: Todo;
   onToggle: () => void;
   onUpdate: (payload: UpdateTodoInput) => void;
   onDelete: () => void;
+  canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(todo.title);
@@ -444,7 +589,7 @@ function TodoItem({
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-start gap-3">
-        <input type="checkbox" checked={todo.completed} onChange={onToggle} className="mt-1" />
+        <input type="checkbox" checked={todo.completed} onChange={onToggle} className="mt-1" disabled={!canEdit} />
 
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -530,7 +675,7 @@ function TodoItem({
           )}
         </div>
 
-        {!editing && (
+        {!editing && canEdit && (
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setEditing(true)} className="rounded border px-2 py-1 text-xs">
               Edit

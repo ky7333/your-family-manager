@@ -1,14 +1,15 @@
 package com.k2tech.yfm.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.id.uuid.UuidVersion7Strategy;
@@ -31,9 +32,24 @@ public class TodoList extends PanacheEntityBase {
     @JoinColumn(name = "createdby_id", nullable = false)
     public User createdBy;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(name = "todo_list_member",
-            joinColumns = @JoinColumn(name = "list_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id"))
-    public List<User> members = new ArrayList<>();
+    @JsonIgnore
+    @OneToMany(mappedBy = "todoList", cascade = CascadeType.ALL, orphanRemoval = true)
+    public List<TodoListMember> memberships = new ArrayList<>();
+
+    @JsonProperty("members")
+    public List<User> getMembers() {
+        return memberships.stream()
+                .filter(member -> member.membershipLevel == TodoListMembershipLevel.OWNER
+                        || member.membershipLevel == TodoListMembershipLevel.READ_WRITE)
+                .map(member -> member.user)
+                .toList();
+    }
+
+    @JsonProperty("readOnlyMembers")
+    public List<User> getReadOnlyMembers() {
+        return memberships.stream()
+                .filter(member -> member.membershipLevel == TodoListMembershipLevel.READ_ONLY)
+                .map(member -> member.user)
+                .toList();
+    }
 }

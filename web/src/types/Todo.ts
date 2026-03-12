@@ -8,7 +8,9 @@ export interface TodoList {
   name: string;
   createdBy?: UserRef;
   members?: UserRef[];
+  readOnlyMembers?: UserRef[];
 }
+
 
 export type TodoPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -47,9 +49,11 @@ export interface UpdateTodoInput {
 export interface CreateTodoListInput {
   name: string;
   sharedWithUsernames?: string[];
+  readOnlySharedWithUsernames?: string[];
 }
 
 export interface UpdateTodoListInput {
   name?: string;
   sharedWithUsernames?: string[];
+  readOnlySharedWithUsernames?: string[];
 }

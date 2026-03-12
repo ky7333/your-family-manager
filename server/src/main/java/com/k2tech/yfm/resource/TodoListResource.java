@@ -1,6 +1,9 @@
 package com.k2tech.yfm.resource;
 
 import com.k2tech.yfm.model.TodoList;
+import com.k2tech.yfm.model.TodoListMember;
+import com.k2tech.yfm.model.TodoListMemberId;
+import com.k2tech.yfm.model.TodoListMembershipLevel;
 import com.k2tech.yfm.model.User;
 import com.k2tech.yfm.repository.TodoListRepository;
 import com.k2tech.yfm.repository.UserRepository;
@@ -26,7 +29,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,31 +58,67 @@ public class TodoListResource {
         return user;
     }
 
-    private List<User> resolveMembers(Set<String> sharedWithUsernames, User owner) {
-        LinkedHashSet<String> usernames = new LinkedHashSet<>();
-        usernames.add(owner.username);
-
-        if (sharedWithUsernames != null) {
-            for (String username : sharedWithUsernames) {
-                if (username == null) {
-                    continue;
-                }
-                String normalized = username.trim();
-                if (!normalized.isEmpty()) {
-                    usernames.add(normalized);
-                }
-            }
+    private LinkedHashSet<String> normalizeUsernames(Set<String> usernames) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (usernames == null) {
+            return normalized;
         }
 
-        List<User> members = new ArrayList<>();
         for (String username : usernames) {
-            User member = userRepository.findByUsername(username);
-            if (member == null) {
-                throw new BadRequestException("Unknown username: " + username);
+            if (username == null) {
+                continue;
             }
-            members.add(member);
+            String value = username.trim();
+            if (!value.isEmpty()) {
+                normalized.add(value);
+            }
         }
-        return members;
+
+        return normalized;
+    }
+
+    private User requireUserByUsername(String username) {
+        User member = userRepository.findByUsername(username);
+        if (member == null) {
+            throw new BadRequestException("Unknown username: " + username);
+        }
+        return member;
+    }
+
+    private TodoListMember createMembership(TodoList todoList, User user, TodoListMembershipLevel level) {
+        TodoListMember membership = new TodoListMember();
+        membership.todoList = todoList;
+        membership.user = user;
+        membership.membershipLevel = level;
+        membership.id = new TodoListMemberId(todoList.id, user.id);
+        return membership;
+    }
+
+    private void applyMemberships(
+            TodoList todoList,
+            User owner,
+            Set<String> writeUsernames,
+            Set<String> readOnlyUsernames
+    ) {
+        LinkedHashSet<String> writeSet = normalizeUsernames(writeUsernames);
+        writeSet.add(owner.username);
+        LinkedHashSet<String> readOnlySet = normalizeUsernames(readOnlyUsernames);
+
+        todoList.memberships.clear();
+
+        for (String username : writeSet) {
+            User user = requireUserByUsername(username);
+            TodoListMembershipLevel level = user.id.equals(owner.id)
+                    ? TodoListMembershipLevel.OWNER
+                    : TodoListMembershipLevel.READ_WRITE;
+            todoList.memberships.add(createMembership(todoList, user, level));
+            readOnlySet.remove(username);
+        }
+
+        for (String username : readOnlySet) {
+            User user = requireUserByUsername(username);
+            todoList.memberships.add(createMembership(todoList, user, TodoListMembershipLevel.READ_ONLY));
+        }
     }
 
     @GET
@@ -100,9 +138,10 @@ public class TodoListResource {
         TodoList todoList = new TodoList();
         todoList.name = trimmedName;
         todoList.createdBy = currentUser;
-        todoList.members = resolveMembers(request.sharedWithUsernames, currentUser);
 
         todoListRepository.persist(todoList);
+        applyMemberships(todoList, currentUser, request.sharedWithUsernames, request.readOnlySharedWithUsernames);
+
         return Response.status(Response.Status.CREATED).entity(todoList).build();
     }
 
@@ -126,10 +165,16 @@ public class TodoListResource {
             todoList.name = trimmedName;
         }
 
-        if (request.sharedWithUsernames != null) {
-            List<User> members = resolveMembers(request.sharedWithUsernames, todoList.createdBy);
-            todoList.members.clear();
-            todoList.members.addAll(members);
+        if (request.sharedWithUsernames != null || request.readOnlySharedWithUsernames != null) {
+            Set<String> writeUsernames = request.sharedWithUsernames != null
+                    ? request.sharedWithUsernames
+                    : todoList.getMembers().stream().map(member -> member.username).collect(java.util.stream.Collectors.toSet());
+
+            Set<String> readOnlyUsernames = request.readOnlySharedWithUsernames != null
+                    ? request.readOnlySharedWithUsernames
+                    : todoList.getReadOnlyMembers().stream().map(member -> member.username).collect(java.util.stream.Collectors.toSet());
+
+            applyMemberships(todoList, todoList.createdBy, writeUsernames, readOnlyUsernames);
         }
 
         return todoList;

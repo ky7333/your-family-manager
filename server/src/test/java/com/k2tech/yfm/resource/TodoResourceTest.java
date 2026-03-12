@@ -3,6 +3,9 @@ package com.k2tech.yfm.resource;
 import com.k2tech.yfm.model.Role;
 import com.k2tech.yfm.model.Todo;
 import com.k2tech.yfm.model.TodoList;
+import com.k2tech.yfm.model.TodoListMember;
+import com.k2tech.yfm.model.TodoListMemberId;
+import com.k2tech.yfm.model.TodoListMembershipLevel;
 import com.k2tech.yfm.model.TodoPriority;
 import com.k2tech.yfm.model.User;
 import io.quarkus.test.junit.QuarkusTest;
@@ -44,30 +47,69 @@ class TodoResourceTest {
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
-    void listOnlyReturnsTodosFromListsCurrentUserCanAccess() {
-        UUID aliceList = createListFor("alice", "Alice list");
-        UUID bobSharedList = createListFor("bob", "Shared with Alice", "alice");
-        UUID bobPrivateList = createListFor("bob", "Bob private");
+    void listOnlyReturnsTodosFromListsCurrentUserCanAccessIncludingReadOnly() {
+        UUID aliceList = createListFor("alice", "Alice list", Set.of(), Set.of());
+        UUID bobSharedWriteList = createListFor("bob", "Shared write", Set.of("alice"), Set.of());
+        UUID bobSharedReadOnlyList = createListFor("bob", "Shared read-only", Set.of(), Set.of("alice"));
+        UUID bobPrivateList = createListFor("bob", "Private", Set.of(), Set.of());
 
         createTodoFor(aliceList, "alice", "Alice todo", false);
-        createTodoFor(bobSharedList, "bob", "Shared todo", false);
+        createTodoFor(bobSharedWriteList, "bob", "Shared write todo", false);
+        createTodoFor(bobSharedReadOnlyList, "bob", "Shared readonly todo", false);
         createTodoFor(bobPrivateList, "bob", "Private todo", false);
 
         given()
                 .when().get("/todos")
                 .then()
                 .statusCode(200)
-                .body("$", hasSize(2))
+                .body("$", hasSize(3))
                 .body("title", hasItem("Alice todo"))
-                .body("title", hasItem("Shared todo"))
+                .body("title", hasItem("Shared write todo"))
+                .body("title", hasItem("Shared readonly todo"))
                 .body("title", not(hasItem("Private todo")));
     }
 
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
+    void readOnlyMemberCanViewByIdButCannotWrite() {
+        UUID listId = createListFor("bob", "Read-only for Alice", Set.of(), Set.of("alice"));
+        UUID todoId = createTodoFor(listId, "bob", "Readonly task", false);
+
+        given()
+                .when().get("/todos/{id}", todoId)
+                .then()
+                .statusCode(200)
+                .body("title", equalTo("Readonly task"));
+
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("completed", true))
+                .when().put("/todos/{id}", todoId)
+                .then()
+                .statusCode(403);
+
+        given()
+                .when().delete("/todos/{id}", todoId)
+                .then()
+                .statusCode(403);
+
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "listId", listId,
+                        "title", "Should fail",
+                        "completed", false
+                ))
+                .when().post("/todos")
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    @TestSecurity(user = "alice", roles = {"user"})
     void listFilterReturnsOnlySelectedListTodos() {
-        UUID chores = createListFor("alice", "Chores");
-        UUID shopping = createListFor("alice", "Shopping");
+        UUID chores = createListFor("alice", "Chores", Set.of(), Set.of());
+        UUID shopping = createListFor("alice", "Shopping", Set.of(), Set.of());
         createTodoFor(chores, "alice", "Laundry", false);
         createTodoFor(shopping, "alice", "Milk", false);
 
@@ -83,7 +125,7 @@ class TodoResourceTest {
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
     void cannotAccessAnotherUsersPrivateTodoById() {
-        UUID bobPrivateList = createListFor("bob", "Bob private");
+        UUID bobPrivateList = createListFor("bob", "Bob private", Set.of(), Set.of());
         UUID bobTodoId = createTodoFor(bobPrivateList, "bob", "Bob secret", false);
 
         given()
@@ -95,7 +137,7 @@ class TodoResourceTest {
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
     void cannotCreateTodoInInaccessibleList() {
-        UUID bobPrivateList = createListFor("bob", "Bob private");
+        UUID bobPrivateList = createListFor("bob", "Bob private", Set.of(), Set.of());
 
         given()
                 .contentType(MediaType.APPLICATION_JSON)
@@ -112,7 +154,7 @@ class TodoResourceTest {
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
     void supportsExtendedTodoFieldsAndCompletionMetadata() {
-        UUID aliceList = createListFor("alice", "Alice list");
+        UUID aliceList = createListFor("alice", "Alice list", Set.of(), Set.of());
 
         String todoId = given()
                 .contentType(MediaType.APPLICATION_JSON)
@@ -157,7 +199,7 @@ class TodoResourceTest {
     @Test
     @TestSecurity(user = "alice", roles = {"user"})
     void rejectsInvalidTodoPayloads() {
-        UUID aliceList = createListFor("alice", "Alice list");
+        UUID aliceList = createListFor("alice", "Alice list", Set.of(), Set.of());
 
         given()
                 .contentType(MediaType.APPLICATION_JSON)
@@ -184,19 +226,27 @@ class TodoResourceTest {
     }
 
     @Transactional
-    UUID createListFor(String ownerUsername, String name, String... sharedWith) {
+    UUID createListFor(String ownerUsername, String name, Set<String> sharedWrite, Set<String> sharedReadOnly) {
         User owner = User.find("username", ownerUsername).firstResult();
         TodoList todoList = new TodoList();
         todoList.name = name;
         todoList.createdBy = owner;
-        todoList.members.add(owner);
-        for (String username : sharedWith) {
+        todoList.persist();
+
+        addMembership(todoList, owner, TodoListMembershipLevel.OWNER);
+        for (String username : sharedWrite) {
             User member = User.find("username", username).firstResult();
-            if (member != null && todoList.members.stream().noneMatch(existing -> existing.id.equals(member.id))) {
-                todoList.members.add(member);
+            if (member != null) {
+                addMembership(todoList, member, TodoListMembershipLevel.READ_WRITE);
             }
         }
-        todoList.persist();
+        for (String username : sharedReadOnly) {
+            User member = User.find("username", username).firstResult();
+            if (member != null && todoList.memberships.stream().noneMatch(existing -> existing.user.id.equals(member.id))) {
+                addMembership(todoList, member, TodoListMembershipLevel.READ_ONLY);
+            }
+        }
+
         return todoList.id;
     }
 
@@ -218,5 +268,17 @@ class TodoResourceTest {
         todo.completedBy = completed ? owner : null;
         todo.persist();
         return todo.id;
+    }
+
+    void addMembership(TodoList todoList, User user, TodoListMembershipLevel level) {
+        if (todoList.memberships.stream().anyMatch(existing -> existing.user.id.equals(user.id))) {
+            return;
+        }
+        TodoListMember membership = new TodoListMember();
+        membership.todoList = todoList;
+        membership.user = user;
+        membership.membershipLevel = level;
+        membership.id = new TodoListMemberId(todoList.id, user.id);
+        todoList.memberships.add(membership);
     }
 }
