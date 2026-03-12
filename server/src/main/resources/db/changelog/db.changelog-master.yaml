@@ -1,0 +1,107 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: copilot
+      changes:
+        - createTable:
+            tableName: role
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 2
+      author: copilot
+      changes:
+        - createTable:
+            tableName: application_user
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: username
+                  type: VARCHAR(255)
+              - column:
+                  name: password
+                  type: VARCHAR(255)
+  - changeSet:
+      id: 3
+      author: copilot
+      changes:
+        - createTable:
+            tableName: user_role
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: user_role
+            columnNames: user_id,role_id
+        - addForeignKeyConstraint:
+            baseTableName: user_role
+            baseColumnNames: user_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_user_role_user
+        - addForeignKeyConstraint:
+            baseTableName: user_role
+            baseColumnNames: role_id
+            referencedTableName: role
+            referencedColumnNames: id
+            constraintName: fk_user_role_role
+  - changeSet:
+      id: 4
+      author: copilot
+      changes:
+        - createTable:
+            tableName: todo
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: VARCHAR(255)
+              - column:
+                  name: completed
+                  type: BOOLEAN
+              - column:
+                  name: createdby_id
+                  type: uuid
+              - column:
+                  name: completedby_id
+                  type: uuid
+        - addForeignKeyConstraint:
+            baseTableName: todo
+            baseColumnNames: createdby_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_todo_createdBy
+        - addForeignKeyConstraint:
+            baseTableName: todo
+            baseColumnNames: completedby_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_todo_completedBy

@@ -20,7 +20,7 @@ export async function addTodo(todo: Omit<Todo, 'id'>): Promise<Todo> {
   return res.json();
 }
 
-export async function updateTodo(id: number, todo: Partial<Todo>): Promise<Todo> {
+export async function updateTodo(id: string, todo: Partial<Todo>): Promise<Todo> {
   const res = await fetch(`${API_URL}/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -31,7 +31,7 @@ export async function updateTodo(id: number, todo: Partial<Todo>): Promise<Todo>
   return res.json();
 }
 
-export async function deleteTodo(id: number): Promise<void> {
+export async function deleteTodo(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/${id}`, {
     method: 'DELETE',
     credentials: 'include',

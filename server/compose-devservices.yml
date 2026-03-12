@@ -1,0 +1,76 @@
+services:
+  powersync:
+    restart: unless-stopped
+    image: journeyapps/powersync-service:latest
+    command: ["start", "-r", "unified"]
+    depends_on:
+      pg-db:
+        condition: service_healthy
+      pg-storage:
+        condition: service_healthy
+    volumes:
+      - ./config:/config
+    environment:
+      PS_STORAGE_SOURCE_URI: ${PS_STORAGE_SOURCE_URI}
+      POWERSYNC_CONFIG_PATH: /config/powersync.yaml
+      # Service memory limits should be adjusted to roughly 80 percent of the system memory capacity
+      NODE_OPTIONS: --max-old-space-size=1000
+      # The following will be inserted into the powersync.yaml file via templating
+      # Templates are used for filesystem and base64 configuration files
+      PS_DATA_SOURCE_URI: ${PS_DATA_SOURCE_URI}
+      # Note that powersync.yaml->client_auth->allow_local_jwks must be true for local URLs to work
+      PS_JWKS_URL: ${PS_JWKS_URL}
+      # The port which the PowerSync API server should run on
+      PS_PORT: ${PS_PORT}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:${PS_PORT}/probes/liveness').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 1s
+      retries: 15
+    ports:
+      - ${PS_PORT}:${PS_PORT}
+  pg-db:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=${PG_DATABASE_USER:-postgres}
+      - POSTGRES_DB=${PG_DATABASE_NAME:-yfm}
+      - POSTGRES_PASSWORD=${PG_DATABASE_PASSWORD:-postgres}
+      - PGPORT=${PG_DATABASE_PORT:-5432}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "${PG_DATABASE_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_DATABASE_USER:-postgres} -d ${PG_DATABASE_NAME:-yfm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pg-storage:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=${PG_STORAGE_DATABASE_USER}
+      - POSTGRES_DB=${PG_STORAGE_DATABASE_NAME}
+      - POSTGRES_PASSWORD=${PG_STORAGE_DATABASE_PASSWORD}
+      - PGPORT=${PG_STORAGE_DATABASE_PORT}
+    volumes:
+      - pg_storage_data:/var/lib/postgresql/data
+    ports:
+      - "${PG_STORAGE_DATABASE_PORT}:${PG_STORAGE_DATABASE_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_STORAGE_DATABASE_USER} -d ${PG_STORAGE_DATABASE_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_storage_data:
+  pg_data:

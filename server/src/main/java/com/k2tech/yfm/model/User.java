@@ -2,7 +2,7 @@ package com.k2tech.yfm.model;
 
 import jakarta.persistence.*;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.elytron.security.common.BcryptUtil;
 import io.quarkus.security.jpa.Password;
 import io.quarkus.security.jpa.Roles;
@@ -10,15 +10,21 @@ import io.quarkus.security.jpa.UserDefinition;
 import io.quarkus.security.jpa.Username;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.id.uuid.UuidVersion7Strategy;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Entity
 @Table(name = "application_user")
 @UserDefinition
-public class User extends PanacheEntity {
+public class User extends PanacheEntityBase {
+    @Id
+    @UuidGenerator(algorithm = UuidVersion7Strategy.class)
+    public UUID id;
     @Username
     public String username;
     @Password
@@ -26,6 +32,9 @@ public class User extends PanacheEntity {
     public String password;
     @Roles
     @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "user_role",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
     public List<Role> roles = new ArrayList<>();
 
     /**

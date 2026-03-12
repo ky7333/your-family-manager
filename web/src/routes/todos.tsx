@@ -43,7 +43,7 @@ function TodosPage() {
     }
   };
 
-  const handleEdit = async (id: number, title: string) => {
+  const handleEdit = async (id: string, title: string) => {
     try {
       const updated = await updateTodo(id, { title });
       setTodos(todos.map(t => (t.id === id ? updated : t)));
@@ -52,7 +52,7 @@ function TodosPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteTodo(id);
       setTodos(todos.filter(t => t.id !== id));

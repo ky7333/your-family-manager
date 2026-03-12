@@ -4,7 +4,7 @@ export interface UserRef {
 }
 
 export interface Todo {
-  id: number;
+  id: string;
   title: string;
   completed: boolean;
   createdBy?: UserRef;

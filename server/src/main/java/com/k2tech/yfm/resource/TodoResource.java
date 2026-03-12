@@ -14,6 +14,7 @@ import com.k2tech.yfm.repository.UserRepository;
 import com.k2tech.yfm.model.User;
 
 import java.util.List;
+import java.util.UUID;
 
 @Path("/todos")
 @Produces(MediaType.APPLICATION_JSON)
@@ -37,7 +38,7 @@ public class TodoResource {
 
     @GET
     @Path("/{id}")
-    public Todo getById(@PathParam("id") Long id) {
+    public Todo getById(@PathParam("id") UUID id) {
         return todoRepository.findById(id);
     }
 
@@ -53,7 +54,7 @@ public class TodoResource {
     @PUT
     @Path("/{id}")
     @Transactional
-    public Todo update(@PathParam("id") Long id, Todo updatedTodo) {
+    public Todo update(@PathParam("id") UUID id, Todo updatedTodo) {
         Todo todo = todoRepository.findById(id);
         if (todo == null) {
             throw new NotFoundException();
@@ -70,7 +71,7 @@ public class TodoResource {
     @DELETE
     @Path("/{id}")
     @Transactional
-    public Response delete(@PathParam("id") Long id) {
+    public Response delete(@PathParam("id") UUID id) {
         boolean deleted = todoRepository.deleteById(id);
         if (!deleted) {
             throw new NotFoundException();
