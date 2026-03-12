@@ -10,4 +10,6 @@ public class UpdateTodoListRequest {
     public String name;
 
     public Set<@NotBlank @Size(max = 255) String> sharedWithUsernames;
+
+    public Set<@NotBlank @Size(max = 255) String> readOnlySharedWithUsernames;
 }

@@ -57,6 +57,23 @@ public class TodoResource {
                 .orElseThrow(NotFoundException::new);
     }
 
+    private TodoList requireWritableList(UUID listId, User currentUser) {
+        TodoList todoList = requireAccessibleList(listId, currentUser);
+        if (todoListRepository.findByIdWritableForUser(listId, currentUser).isEmpty()) {
+            throw new ForbiddenException("Read-only members cannot modify this list");
+        }
+        return todoList;
+    }
+
+    private Todo requireWritableTodo(UUID todoId, User currentUser) {
+        Todo todo = todoRepository.findByIdForUser(todoId, currentUser)
+                .orElseThrow(NotFoundException::new);
+        if (todoRepository.findByIdWritableForUser(todoId, currentUser).isEmpty()) {
+            throw new ForbiddenException("Read-only members cannot modify todos in this list");
+        }
+        return todo;
+    }
+
     private LocalDate parseDueDate(String dueDate) {
         if (dueDate == null || dueDate.isBlank()) {
             return null;
@@ -89,7 +106,7 @@ public class TodoResource {
     @Transactional
     public Response create(@Valid CreateTodoRequest request) {
         User currentUser = requireCurrentUser();
-        TodoList todoList = requireAccessibleList(request.listId, currentUser);
+        TodoList todoList = requireWritableList(request.listId, currentUser);
         LocalDateTime now = LocalDateTime.now();
         Todo todo = new Todo();
         todo.title = request.title.trim();
@@ -112,8 +129,7 @@ public class TodoResource {
     @Transactional
     public Todo update(@PathParam("id") UUID id, @Valid UpdateTodoRequest request) {
         User currentUser = requireCurrentUser();
-        Todo todo = todoRepository.findByIdForUser(id, currentUser)
-                .orElseThrow(NotFoundException::new);
+        Todo todo = requireWritableTodo(id, currentUser);
 
         if (request.title != null) {
             String trimmedTitle = request.title.trim();
@@ -156,8 +172,7 @@ public class TodoResource {
     @Transactional
     public Response delete(@PathParam("id") UUID id) {
         User currentUser = requireCurrentUser();
-        Todo todo = todoRepository.findByIdForUser(id, currentUser)
-                .orElseThrow(NotFoundException::new);
+        Todo todo = requireWritableTodo(id, currentUser);
         todoRepository.delete(todo);
         return Response.noContent().build();
     }

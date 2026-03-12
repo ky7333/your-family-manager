@@ -197,3 +197,72 @@ databaseChangeLog:
             referencedTableName: todo_list
             referencedColumnNames: id
             constraintName: fk_todo_list
+
+  - changeSet:
+      id: 6
+      author: codex
+      changes:
+        - createTable:
+            tableName: todo_list_read_only_member
+            columns:
+              - column:
+                  name: list_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: todo_list_read_only_member
+            columnNames: list_id,user_id
+        - addForeignKeyConstraint:
+            baseTableName: todo_list_read_only_member
+            baseColumnNames: list_id
+            referencedTableName: todo_list
+            referencedColumnNames: id
+            constraintName: fk_todo_list_read_only_member_list
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: todo_list_read_only_member
+            baseColumnNames: user_id
+            referencedTableName: application_user
+            referencedColumnNames: id
+            constraintName: fk_todo_list_read_only_member_user
+            onDelete: CASCADE
+
+
+  - changeSet:
+      id: 7
+      author: codex
+      changes:
+        - addColumn:
+            tableName: todo_list_member
+            columns:
+              - column:
+                  name: membership_level
+                  type: VARCHAR(32)
+                  defaultValue: READ_WRITE
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: |
+              update todo_list_member tlm
+              set membership_level = 'OWNER'
+              where exists (
+                select 1 from todo_list tl
+                where tl.id = tlm.list_id and tl.createdby_id = tlm.user_id
+              )
+        - sql:
+            sql: |
+              insert into todo_list_member (list_id, user_id, membership_level)
+              select rom.list_id, rom.user_id, 'READ_ONLY'
+              from todo_list_read_only_member rom
+              where not exists (
+                select 1 from todo_list_member tlm
+                where tlm.list_id = rom.list_id and tlm.user_id = rom.user_id
+              )
+        - dropTable:
+            tableName: todo_list_read_only_member
