@@ -7,7 +7,9 @@
     "start": "vite --port 3000",
     "build": "vite build && tsc",
     "serve": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "npx eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
