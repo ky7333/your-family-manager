@@ -103,21 +103,49 @@ public class TodoListResource {
         LinkedHashSet<String> writeSet = normalizeUsernames(writeUsernames);
         writeSet.add(owner.username);
         LinkedHashSet<String> readOnlySet = normalizeUsernames(readOnlyUsernames);
+        LinkedHashSet<String> allUsernames = new LinkedHashSet<>();
+        allUsernames.addAll(writeSet);
+        allUsernames.addAll(readOnlySet);
 
-        todoList.memberships.clear();
+        java.util.Map<String, User> usersByUsername = new java.util.HashMap<>();
+        for (String username : allUsernames) {
+            usersByUsername.put(username, requireUserByUsername(username));
+        }
 
+        java.util.Map<UUID, TodoListMembershipLevel> desiredLevelsByUserId = new java.util.HashMap<>();
         for (String username : writeSet) {
-            User user = requireUserByUsername(username);
+            User user = usersByUsername.get(username);
             TodoListMembershipLevel level = user.id.equals(owner.id)
                     ? TodoListMembershipLevel.OWNER
                     : TodoListMembershipLevel.READ_WRITE;
-            todoList.memberships.add(createMembership(todoList, user, level));
+            desiredLevelsByUserId.put(user.id, level);
             readOnlySet.remove(username);
         }
-
         for (String username : readOnlySet) {
-            User user = requireUserByUsername(username);
-            todoList.memberships.add(createMembership(todoList, user, TodoListMembershipLevel.READ_ONLY));
+            User user = usersByUsername.get(username);
+            desiredLevelsByUserId.put(user.id, TodoListMembershipLevel.READ_ONLY);
+        }
+
+        java.util.Map<UUID, TodoListMember> existingByUserId = new java.util.HashMap<>();
+        java.util.Iterator<TodoListMember> iterator = todoList.memberships.iterator();
+        while (iterator.hasNext()) {
+            TodoListMember membership = iterator.next();
+            if (!desiredLevelsByUserId.containsKey(membership.user.id)) {
+                iterator.remove();
+                continue;
+            }
+            existingByUserId.put(membership.user.id, membership);
+        }
+
+        for (String username : allUsernames) {
+            User user = usersByUsername.get(username);
+            TodoListMembershipLevel desiredLevel = desiredLevelsByUserId.get(user.id);
+            TodoListMember existing = existingByUserId.get(user.id);
+            if (existing != null) {
+                existing.membershipLevel = desiredLevel;
+            } else {
+                todoList.memberships.add(createMembership(todoList, user, desiredLevel));
+            }
         }
     }
 
