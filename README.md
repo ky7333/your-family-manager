@@ -20,6 +20,7 @@ Planned modules (not implemented yet): recipes, meal planning, budgeting, and mo
 
 - `server/` Quarkus backend API
 - `web/` React frontend
+- `packages/design-tokens/` shared design tokens for web and future mobile app
 - `server/compose-devservices.yml` local PowerSync + PostgreSQL services
 - `server/config/powersync.yaml` PowerSync config used by compose
 

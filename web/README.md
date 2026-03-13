@@ -88,3 +88,6 @@ The web app currently integrates with:
 
 For full-stack setup (backend, Docker/Podman deployment, optional PowerSync stack), see:
 - [Root README](../README.md)
+
+For shared color/spacing/radius/typography tokens used by web and future mobile:
+- [Design Tokens Package](../packages/design-tokens/README.md)
