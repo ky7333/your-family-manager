@@ -68,7 +68,7 @@ npm run lint
 Build and run the web container from repo root:
 
 ```bash
-docker build -t yfm-web:latest web
+docker build -t yfm-web:latest -f web/Dockerfile .
 docker run --rm -p 3000:80 yfm-web:latest
 ```
 
@@ -88,3 +88,6 @@ The web app currently integrates with:
 
 For full-stack setup (backend, Docker/Podman deployment, optional PowerSync stack), see:
 - [Root README](../README.md)
+
+For shared color/spacing/radius/typography tokens used by web and future mobile:
+- [Design Tokens Package](../packages/design-tokens/README.md)

@@ -20,7 +20,7 @@ jobs:
       matrix:
         include:
           - name: frontend
-            context: ./web
+            context: .
             file: ./web/Dockerfile
             image: ghcr.io/${{ github.repository }}-web
           - name: backend
