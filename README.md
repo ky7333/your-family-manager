@@ -5,14 +5,16 @@ Your Family Manager is a family life management platform in active development.
 Current implementation is focused on authenticated task management:
 - Quarkus backend with session auth, user profile, todo lists, and todos
 - React web app with login/logout, todo list sharing, and todo CRUD
+- Expo mobile MVP with login, list creation/sharing, and todo create/update/toggle/delete
 - PostgreSQL + Liquibase migrations
 
-Planned modules (not implemented yet): recipes, meal planning, budgeting, and mobile sync.
+Planned modules (not implemented yet): recipes, meal planning, budgeting, and production-grade mobile sync.
 
 ## Tech Stack
 
 - Backend: Java 21, Quarkus 3, Hibernate Panache, Liquibase
-- Frontend: React 19, Vite, TanStack Router, Tailwind, shadcn/ui
+- Web: React 19, Vite, TanStack Router, Tailwind, shadcn/ui
+- Mobile: Expo (React Native), NativeWind, reusable RN UI primitives
 - Database: PostgreSQL
 - Containers: Docker or Podman
 
@@ -20,7 +22,8 @@ Planned modules (not implemented yet): recipes, meal planning, budgeting, and mo
 
 - `server/` Quarkus backend API
 - `web/` React frontend
-- `packages/design-tokens/` shared design tokens for web and future mobile app
+- `mobile/` Expo mobile app MVP
+- `packages/design-tokens/` shared design tokens for web and mobile
 - `server/compose-devservices.yml` local PowerSync + PostgreSQL services
 - `server/config/powersync.yaml` PowerSync config used by compose
 
@@ -48,6 +51,7 @@ Notes:
   - `admin / admin`
   - `user / user`
 - Liquibase migrations run at startup.
+- Set `YFM_SESSION_ENCRYPTION_KEY` to a long random string to keep form-auth sessions valid across backend restarts.
 
 ### 2) Start the web app
 
@@ -73,6 +77,27 @@ VITE_BACKEND_BASE_URL=http://localhost:8080 npm run dev
 - Open `http://localhost:3000`
 - Login with `admin/admin`
 - Create a todo list, then create/update todos
+
+### 4) Start the mobile app (Expo)
+
+In a third terminal:
+
+```bash
+cd mobile
+npm install
+npm run start
+```
+
+Backend URL defaults:
+- iOS simulator: `http://localhost:8080`
+- Android emulator: `http://10.0.2.2:8080`
+
+Override for device/LAN usage:
+
+```bash
+cd mobile
+EXPO_PUBLIC_BACKEND_BASE_URL=http://<your-lan-ip>:8080 npm run start
+```
 
 ## Development Checks
 
@@ -236,9 +261,11 @@ Implemented now:
 - Todo lists with member access levels (owner/read-write/read-only)
 - Todo CRUD scoped by list access
 - Username search for sharing (`/users/search`)
+- Web UI for auth + list/todo flows
+- Expo mobile MVP for auth + list/todo flows
 
 Not yet implemented:
 - Family/household-level authorization model
 - Recipes, meal plans, and budgets
-- Mobile app and full PowerSync integration contract
+- Full PowerSync integration contract (web/mobile offline sync)
 - Comprehensive frontend end-to-end coverage
