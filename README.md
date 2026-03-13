@@ -117,7 +117,7 @@ docker build -t yfm-server:latest -f server/src/main/docker/Dockerfile.jvm serve
 
 # Build web image
 
-docker build -t yfm-web:latest web
+docker build -t yfm-web:latest -f web/Dockerfile .
 ```
 
 ### B) Run app stack (PostgreSQL + backend + web)

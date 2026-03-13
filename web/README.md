@@ -68,7 +68,7 @@ npm run lint
 Build and run the web container from repo root:
 
 ```bash
-docker build -t yfm-web:latest web
+docker build -t yfm-web:latest -f web/Dockerfile .
 docker run --rm -p 3000:80 yfm-web:latest
 ```
 
