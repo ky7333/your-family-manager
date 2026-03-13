@@ -10,6 +10,17 @@ import type { Todo, TodoList, TodoPriority, UpdateTodoInput } from '../types/Tod
 
 const PRIORITIES: TodoPriority[] = ['LOW', 'MEDIUM', 'HIGH'];
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Something went wrong';
+};
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof DOMException && error.name === 'AbortError';
+
 export const Route = createFileRoute('/todos')({
   component: TodosPage,
 });
@@ -58,11 +69,12 @@ function TodosPage() {
       try {
         const loadedLists = await fetchTodoLists();
         setLists(loadedLists);
-        if (loadedLists.length > 0) {
-          setSelectedListId(current => current ?? loadedLists[0].id);
+        const firstList = loadedLists.at(0);
+        if (firstList) {
+          setSelectedListId(current => current ?? firstList.id);
         }
-      } catch (e: any) {
-        setError(e.message);
+      } catch (error: unknown) {
+        setError(getErrorMessage(error));
       } finally {
         setLoadingLists(false);
       }
@@ -83,8 +95,8 @@ function TodosPage() {
       try {
         const loadedTodos = await fetchTodos(selectedListId);
         setTodos(loadedTodos);
-      } catch (e: any) {
-        setError(e.message);
+      } catch (error: unknown) {
+        setError(getErrorMessage(error));
       } finally {
         setLoadingTodos(false);
       }
@@ -109,9 +121,9 @@ function TodosPage() {
         setMemberSearchResults(
           results.filter(result => !selectedMemberUsernames.includes(result.username)),
         );
-      } catch (e: any) {
-        if (e.name !== 'AbortError') {
-          setError(e.message);
+      } catch (error: unknown) {
+        if (!isAbortError(error)) {
+          setError(getErrorMessage(error));
         }
       } finally {
         setSearchingMembers(false);
@@ -144,9 +156,9 @@ function TodosPage() {
               && !selectedReadOnlyMemberUsernames.includes(result.username),
           ),
         );
-      } catch (e: any) {
-        if (e.name !== 'AbortError') {
-          setError(e.message);
+      } catch (error: unknown) {
+        if (!isAbortError(error)) {
+          setError(getErrorMessage(error));
         }
       } finally {
         setSearchingReadOnlyMembers(false);
@@ -207,8 +219,8 @@ function TodosPage() {
       setReadOnlyMemberQuery('');
       setSelectedReadOnlyMemberUsernames([]);
       setReadOnlyMemberSearchResults([]);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     } finally {
       setSavingList(false);
     }
@@ -246,8 +258,8 @@ function TodosPage() {
       setNewDetails('');
       setNewDueDate('');
       setNewPriority('MEDIUM');
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     } finally {
       setSavingTodo(false);
     }
@@ -261,8 +273,8 @@ function TodosPage() {
     try {
       const updated = await updateTodo(todo.id, { completed: !todo.completed });
       setTodos(prev => prev.map(item => (item.id === todo.id ? updated : item)));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     }
   };
 
@@ -274,8 +286,8 @@ function TodosPage() {
     try {
       const updated = await updateTodo(id, payload);
       setTodos(prev => prev.map(item => (item.id === id ? updated : item)));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     }
   };
 
@@ -287,8 +299,8 @@ function TodosPage() {
     try {
       await deleteTodo(id);
       setTodos(prev => prev.filter(item => item.id !== id));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     }
   };
 
@@ -328,9 +340,10 @@ function TodosPage() {
                 value={memberQuery}
                 onChange={e => setMemberQuery(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && memberSearchResults.length > 0) {
+                  const firstResult = memberSearchResults.at(0);
+                  if (e.key === 'Enter' && firstResult) {
                     e.preventDefault();
-                    addMemberChip(memberSearchResults[0].username);
+                    addMemberChip(firstResult.username);
                   }
                 }}
                 placeholder="Search usernames to share"
@@ -377,9 +390,10 @@ function TodosPage() {
                 value={readOnlyMemberQuery}
                 onChange={e => setReadOnlyMemberQuery(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && readOnlyMemberSearchResults.length > 0) {
+                  const firstResult = readOnlyMemberSearchResults.at(0);
+                  if (e.key === 'Enter' && firstResult) {
                     e.preventDefault();
-                    addReadOnlyMemberChip(readOnlyMemberSearchResults[0].username);
+                    addReadOnlyMemberChip(firstResult.username);
                   }
                 }}
                 placeholder="Search usernames for read-only access"

@@ -23,7 +23,7 @@ export async function searchUsersByUsername(query: string, signal?: AbortSignal)
     `${BACKEND_BASE_URL}/users/search?q=${encodeURIComponent(normalizedQuery)}`,
     {
       credentials: 'include',
-      signal,
+      signal: signal ?? null,
     },
   );
   if (!response.ok) {

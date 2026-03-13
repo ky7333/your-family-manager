@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { login } from '../api/todoApi';
 import { fetchCurrentUser } from '../api/userApi';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -10,39 +10,42 @@ import { useNavigate } from '@tanstack/react-router';
 export default function Login() {
   const { user, setUser } = useUser();
   const navigate = useNavigate();
-  // If already authenticated, redirect to home
-  if (user) {
-    navigate({ to: '/' });
-    return null;
-  }
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      void navigate({ to: '/' });
+    }
+  }, [navigate, user]);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     try {
       await login(username, password);
       setError('');
-      setLoading(false);
       // Refresh user state after login using userApi
       const userJson = await fetchCurrentUser();
       if (userJson) {
         setUser(userJson);
       } else {
         setError('Session not established after login.');
-        setLoading(false);
         return;
       }
-    } catch (err) {
-        console.error('Login error:', err);
+    } catch {
       setError('Login failed');
+    } finally {
       setLoading(false);
     }
   };
+
+  // If already authenticated, redirect to home
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

@@ -5,10 +5,10 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { useTheme } from '../lib/ThemeContext';
 
-type HeaderProps = {
+interface HeaderProps {
   authenticated: boolean;
   onLogout: () => void;
-};
+}
 
 export default function Header({ authenticated, onLogout }: HeaderProps) {
   const { theme } = useTheme();
