@@ -39,6 +39,7 @@ export default function TodoItem({
   const [isToggling, setIsToggling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   useEffect(() => {
     setTitle(todo.title);
@@ -46,12 +47,15 @@ export default function TodoItem({
     setDueDate(todo.dueDate ?? '');
     setPriority(todo.priority ?? 'MEDIUM');
     setActionError(null);
+    setTitleError(null);
   }, [todo.id, todo.updatedAt]);
 
   const save = async () => {
     if (!title.trim()) {
+      setTitleError('Title is required');
       return;
     }
+    setTitleError(null);
     setActionError(null);
     setSaving(true);
     try {
@@ -110,7 +114,16 @@ export default function TodoItem({
         <View className="flex-1 gap-2">
           {editing ? (
             <>
-              <Input value={title} onChangeText={setTitle} />
+              <Input
+                value={title}
+                onChangeText={value => {
+                  setTitle(value);
+                  if (titleError) {
+                    setTitleError(null);
+                  }
+                }}
+              />
+              {titleError ? <Text className="text-xs text-red-600 dark:text-red-400">{titleError}</Text> : null}
               <Input
                 value={details}
                 onChangeText={setDetails}
@@ -127,6 +140,7 @@ export default function TodoItem({
                     label={level}
                     size="sm"
                     variant={priority === level ? 'default' : 'outline'}
+                    disabled={saving}
                     onPress={() => setPriority(level)}
                   />
                 ))}
@@ -137,11 +151,13 @@ export default function TodoItem({
                 <Button
                   label="Cancel"
                   variant="outline"
+                  disabled={saving}
                   onPress={() => {
                     setTitle(todo.title);
                     setDetails(todo.details ?? '');
                     setDueDate(todo.dueDate ?? '');
                     setPriority(todo.priority ?? 'MEDIUM');
+                    setTitleError(null);
                     setEditing(false);
                   }}
                 />
