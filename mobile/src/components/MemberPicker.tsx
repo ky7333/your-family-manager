@@ -48,8 +48,14 @@ export default function MemberPicker({
                   variant="ghost"
                   className="h-6 px-2"
                   textClassName="text-xs"
+                  disabled={disabled}
                   accessibilityLabel={`Remove member ${username}`}
-                  onPress={() => onRemove(username)}
+                  onPress={() => {
+                    if (disabled) {
+                      return;
+                    }
+                    onRemove(username);
+                  }}
                 />
               </View>
             ))}
@@ -77,7 +83,13 @@ export default function MemberPicker({
               variant="ghost"
               className="justify-start px-2"
               textClassName="text-sm"
-              onPress={() => onAdd(result.username)}
+              disabled={disabled}
+              onPress={() => {
+                if (disabled) {
+                  return;
+                }
+                onAdd(result.username);
+              }}
             />
           ))}
         </View>

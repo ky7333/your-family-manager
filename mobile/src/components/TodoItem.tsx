@@ -62,6 +62,8 @@ export default function TodoItem({
         priority,
       });
       setEditing(false);
+    } catch (error: unknown) {
+      setActionError(getErrorMessage(error));
     } finally {
       setSaving(false);
     }
