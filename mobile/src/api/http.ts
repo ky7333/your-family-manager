@@ -8,6 +8,7 @@ type UnauthorizedHandler = () => void;
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 let isNotifyingUnauthorized = false;
+let unauthorizedHandlerOwner: symbol | null = null;
 
 export class UnauthorizedError extends Error {
   constructor(message = 'Session expired. Please sign in again.') {
@@ -16,8 +17,17 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null, owner?: symbol) {
+  if (handler === null) {
+    if (!owner || unauthorizedHandlerOwner === owner) {
+      unauthorizedHandler = null;
+      unauthorizedHandlerOwner = null;
+    }
+    return;
+  }
+
   unauthorizedHandler = handler;
+  unauthorizedHandlerOwner = owner ?? null;
 }
 
 type FetchInit = RequestInit & {
@@ -35,7 +45,9 @@ const parseErrorMessage = async (response: Response): Promise<string> => {
 export async function request(path: string, init?: FetchInit): Promise<Response> {
   const mergedHeaders = new Headers(defaultHeaders);
   const providedHeaders = new Headers(init?.headers);
-  providedHeaders.forEach((value, key) => mergedHeaders.set(key, value));
+  providedHeaders.forEach((value, key) => {
+    mergedHeaders.set(key, value);
+  });
 
   if (!init?.skipJsonContentType && init?.body && !mergedHeaders.has('Content-Type')) {
     mergedHeaders.set('Content-Type', 'application/json');

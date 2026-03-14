@@ -81,23 +81,26 @@ export default function TodosScreen() {
     [selectedList, user],
   );
 
-  const loadLists = async () => {
+  const loadLists = async (): Promise<string | null> => {
     setLoadingLists(true);
     setError(null);
     try {
       const loadedLists = sortListsByName(await fetchTodoLists());
       setLists(loadedLists);
-      setSelectedListId(current => {
+      const nextSelectedListId = (() => {
         if (!loadedLists.length) {
           return null;
         }
-        if (current && loadedLists.some(list => list.id === current)) {
-          return current;
+        if (selectedListId && loadedLists.some(list => list.id === selectedListId)) {
+          return selectedListId;
         }
         return loadedLists[0].id;
-      });
+      })();
+      setSelectedListId(nextSelectedListId);
+      return nextSelectedListId;
     } catch (caughtError: unknown) {
       setError(getErrorMessage(caughtError));
+      return selectedListId;
     } finally {
       setLoadingLists(false);
     }
@@ -123,8 +126,8 @@ export default function TodosScreen() {
   const refresh = async () => {
     setRefreshing(true);
     try {
-      await loadLists();
-      await loadTodos(selectedListId);
+      const refreshedSelectedListId = await loadLists();
+      await loadTodos(refreshedSelectedListId ?? selectedListId);
     } finally {
       setRefreshing(false);
     }

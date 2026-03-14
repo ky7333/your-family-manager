@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { fetchCurrentUser, login, logout } from '../api/authApi';
 import { UnauthorizedError, setUnauthorizedHandler } from '../api/http';
@@ -30,21 +30,43 @@ export const useUser = () => useContext(UserContext);
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const unauthorizedHandlerOwnerRef = useRef(Symbol('UserProviderUnauthorizedHandler'));
 
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      setUser(null);
-    });
-
-    return () => {
-      setUnauthorizedHandler(null);
-    };
-  }, []);
-
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const currentUser = await fetchCurrentUser();
     setUser(currentUser);
-  };
+  }, []);
+
+  const signIn = useCallback(async ({ username, password }: Credentials) => {
+    await login(username, password);
+    const currentUser = await fetchCurrentUser();
+    if (!currentUser) {
+      throw new Error('Session not established after login.');
+    }
+    setUser(currentUser);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await logout();
+    } catch (error) {
+      if (!(error instanceof UnauthorizedError)) {
+        throw error;
+      }
+    }
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    const owner = unauthorizedHandlerOwnerRef.current;
+    setUnauthorizedHandler(() => {
+      setUser(null);
+    }, owner);
+
+    return () => {
+      setUnauthorizedHandler(null, owner);
+    };
+  }, []);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -56,27 +78,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
 
     void bootstrap();
-  }, []);
-
-  const signIn = async ({ username, password }: Credentials) => {
-    await login(username, password);
-    const currentUser = await fetchCurrentUser();
-    if (!currentUser) {
-      throw new Error('Session not established after login.');
-    }
-    setUser(currentUser);
-  };
-
-  const signOut = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      if (!(error instanceof UnauthorizedError)) {
-        throw error;
-      }
-    }
-    setUser(null);
-  };
+  }, [refreshUser]);
 
   const value = useMemo<UserContextValue>(
     () => ({
@@ -86,7 +88,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshUser,
     }),
-    [bootstrapping, user],
+    [bootstrapping, refreshUser, signIn, signOut, user],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

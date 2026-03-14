@@ -56,6 +56,8 @@ export function Button({
   size,
   disabled,
   label,
+  accessibilityLabel,
+  accessibilityRole,
   ...props
 }: ButtonProps) {
   return (
@@ -66,6 +68,8 @@ export function Button({
         className,
       )}
       disabled={disabled}
+      accessibilityRole={accessibilityRole ?? 'button'}
+      accessibilityLabel={accessibilityLabel ?? label}
       {...props}
     >
       <Text className={cn(buttonTextVariants({ variant }), textClassName)}>{label}</Text>

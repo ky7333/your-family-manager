@@ -13,6 +13,7 @@ import { useUser } from '../context/UserContext';
 import { Card, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { UnauthorizedError } from '../api/http';
 
 export default function LoginScreen() {
   const { signIn } = useUser();
@@ -26,8 +27,12 @@ export default function LoginScreen() {
     setError('');
     try {
       await signIn({ username, password });
-    } catch {
-      setError('Login failed');
+    } catch (caughtError: unknown) {
+      if (caughtError instanceof UnauthorizedError) {
+        setError('Invalid username or password');
+      } else {
+        setError('Login failed');
+      }
     } finally {
       setLoading(false);
     }

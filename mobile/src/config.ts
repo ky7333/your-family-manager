@@ -5,5 +5,11 @@ const localBackendByPlatform = Platform.select({
   default: 'http://localhost:8080',
 });
 
+const normalizedConfiguredBackendUrl = process.env.EXPO_PUBLIC_BACKEND_BASE_URL
+  ?.trim()
+  .replace(/\/+$/, '');
+
 export const BACKEND_BASE_URL =
-  process.env.EXPO_PUBLIC_BACKEND_BASE_URL?.trim() || localBackendByPlatform;
+  normalizedConfiguredBackendUrl && normalizedConfiguredBackendUrl.length > 0
+    ? normalizedConfiguredBackendUrl
+    : localBackendByPlatform;

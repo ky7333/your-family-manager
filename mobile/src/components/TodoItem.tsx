@@ -16,6 +16,13 @@ interface TodoItemProps {
   onDelete: () => Promise<void>;
 }
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return 'Something went wrong';
+};
+
 export default function TodoItem({
   todo,
   canEdit,
@@ -29,18 +36,23 @@ export default function TodoItem({
   const [dueDate, setDueDate] = useState(todo.dueDate ?? '');
   const [priority, setPriority] = useState<TodoPriority>(todo.priority ?? 'MEDIUM');
   const [saving, setSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     setTitle(todo.title);
     setDetails(todo.details ?? '');
     setDueDate(todo.dueDate ?? '');
     setPriority(todo.priority ?? 'MEDIUM');
-  }, [todo]);
+    setActionError(null);
+  }, [todo.id, todo.updatedAt]);
 
   const save = async () => {
     if (!title.trim()) {
       return;
     }
+    setActionError(null);
     setSaving(true);
     try {
       await onUpdate({
@@ -55,6 +67,30 @@ export default function TodoItem({
     }
   };
 
+  const toggleTodo = async () => {
+    setActionError(null);
+    setIsToggling(true);
+    try {
+      await onToggle();
+    } catch (error: unknown) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  const deleteCurrentTodo = async () => {
+    setActionError(null);
+    setIsDeleting(true);
+    try {
+      await onDelete();
+    } catch (error: unknown) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <View className="gap-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
       <View className="flex-row items-start gap-3">
@@ -63,9 +99,9 @@ export default function TodoItem({
           variant="outline"
           size="sm"
           className="h-8 w-8 rounded-full px-0"
-          disabled={!canEdit || saving}
+          disabled={!canEdit || saving || isToggling || isDeleting}
           onPress={() => {
-            void onToggle();
+            void toggleTodo();
           }}
         />
 
@@ -132,15 +168,24 @@ export default function TodoItem({
         </View>
       </View>
 
+      {actionError ? <Text className="text-xs text-red-600 dark:text-red-400">{actionError}</Text> : null}
+
       {!editing && canEdit ? (
         <View className="flex-row gap-2">
-          <Button label="Edit" size="sm" variant="outline" onPress={() => setEditing(true)} />
+          <Button
+            label="Edit"
+            size="sm"
+            variant="outline"
+            disabled={isDeleting || isToggling}
+            onPress={() => setEditing(true)}
+          />
           <Button
             label="Delete"
             size="sm"
             variant="destructive"
+            disabled={isDeleting || isToggling}
             onPress={() => {
-              void onDelete();
+              void deleteCurrentTodo();
             }}
           />
         </View>

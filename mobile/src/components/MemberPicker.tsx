@@ -48,6 +48,7 @@ export default function MemberPicker({
                   variant="ghost"
                   className="h-6 px-2"
                   textClassName="text-xs"
+                  accessibilityLabel={`Remove member ${username}`}
                   onPress={() => onRemove(username)}
                 />
               </View>
