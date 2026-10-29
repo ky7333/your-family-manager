@@ -15,7 +15,7 @@
     "@yfm/design-tokens": "file:../packages/design-tokens",
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.2.1",
-    "@tanstack/react-devtools": "^0.9.13",
+    "@tanstack/react-devtools": "^0.10.0",
     "@tanstack/react-router": "^1.166.7",
     "@tanstack/react-router-devtools": "^1.166.7",
     "@tanstack/router-plugin": "^1.166.7",
